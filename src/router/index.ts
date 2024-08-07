@@ -1,5 +1,5 @@
-import GamePage from "../components/GamePage";
-import LoginPage from "../components/LoginPage";
+import GamePage from "../pages/GamePage";
+import LoginPage from "../pages/LoginPage";
 
 interface IRoute {
   path: string;

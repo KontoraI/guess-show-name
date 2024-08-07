@@ -4,8 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { fetchMovies } from "../services/movieList";
 import { css } from "@emotion/react";
 import { authService } from "../store/auth";
-import { useNavigate } from "react-router-dom";
-import LoginPage from "./LoginPage";
+import { styles } from ".";
 
 const GamePage = observer(() => {
   const [lives, setLives] = useState(3);
@@ -18,54 +17,74 @@ const GamePage = observer(() => {
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const [showingOverview, setShowingOverview] = useState<string>("");
   const [isVisible, setIsVisible] = useState(false);
-  const navigator = useNavigate();
   const [correctAnswers, setCorrectAnsers] = useState(0);
+  const firstDisabledIndex = useRef(0);
 
   useEffect(() => {
     const fetchData = async () => {
       localStorage.setItem("correctAnswers", correctAnswers.toString());
-      const movies = (await fetchMovies()).map((e) => e.original_title);
-      const describing = (await fetchMovies()).map((e) => e.overview);
-      setMoviesArray(movies);
-      setOverview(describing);
+      const fetchedMovies = await fetchMovies();
+
+      for (let item of fetchedMovies) {
+        setMoviesArray((prev) => [...prev, item.original_title]);
+        setOverview((prev) => [...prev, item.overview]);
+      }
 
       setShowingOverview(
         overview[index]?.slice(
           0,
           !overview[index][
-            overview[index].indexOf(" ", overview[index].length / 2) - 1
+            overview[index].indexOf(
+              " ",
+              Math.floor(overview[index].length / 2)
+            ) - 1
           ].match(/[a-zA-Z]/)
-            ? overview[index].indexOf(" ", overview[index].length / 2) - 1
-            : overview[index].indexOf(" ", overview[index].length / 2)
+            ? overview[index].indexOf(
+                " ",
+                Math.floor(overview[index].length / 2)
+              ) - 1
+            : overview[index].indexOf(
+                " ",
+                Math.floor(overview[index].length / 2)
+              )
         ) + "..."
       );
 
       const movie = moviesArray[index];
 
+      let counter = 0;
+      const indexes: number[] = [];
       for (let i = 0; i < movie?.split("").length; i++) {
-        let letter = movie?.split("")[i];
-        if (!letter.match(/[a-zA-Z]/) && !arrayIndex.includes(i)) {
-          setArrayIndex((prev) => [...prev, i]);
-          setAnswer((prev) => [...prev, { index: i, value: movie[i] }]);
+        const letter = movie?.split("")[i];
+
+        if (!letter.match(/[a-zA-Z]/) && !indexes.includes(i)) {
+          indexes.push(i);
+        }
+
+        if (counter < Math.floor(movie?.split("").length / 2)) {
+          const randomIndex = Math.floor(Math.random() * movie?.length);
+
+          indexes.push(randomIndex);
+          counter++;
+        }
+      }
+      const indexesOnly = Array.from(new Set(indexes.sort((a, b) => a - b)));
+
+      setArrayIndex(indexesOnly);
+
+      for (let index of indexesOnly) {
+        setAnswer((prev) => [...prev, { index: index, value: movie[index] }]);
+        if (firstDisabledIndex.current === index) {
+          firstDisabledIndex.current++;
         }
       }
 
+      inputRefs.current[firstDisabledIndex.current]?.focus();
 
-      
-      let indexId = 0;
-      if (inputRefs.current[indexId]?.disabled) {
-        while (inputRefs.current[indexId]?.disabled) {
-          indexId++;
-        }
-      }
-
-      inputRefs.current[indexId]?.focus();
       setMoviesLoaded(true);
     };
     fetchData();
-  }, [moviesLoaded, index]);
-
-  console.log(answer);
+  }, [moviesLoaded, index, lives]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -73,14 +92,15 @@ const GamePage = observer(() => {
       const currentIndex = inputRefs.current?.indexOf(target);
 
       if (event.key === "Enter") {
-        showNext();
-        return;
+        if (lives) {
+          showNext();
+        }
       }
 
       if (event.key.match(/[a-zA-Z]/) && event.key.length === 1) {
         let nextIndex = currentIndex + 1;
 
-        if (answer.length !== inputRefs.current?.length) {
+        if (answer.length !== moviesArray[index]!.length) {
           if (inputRefs.current[currentIndex]?.value) {
             if (inputRefs.current[nextIndex]?.disabled) {
               while (inputRefs.current[nextIndex]?.disabled) {
@@ -115,7 +135,7 @@ const GamePage = observer(() => {
         }
       } else if (event.key === "Backspace") {
         let prevIndex = currentIndex - 1;
-        if (currentIndex !== 0) {
+        if (currentIndex !== firstDisabledIndex.current) {
           setAnswer((prev) => [...prev.slice(0, -1)]);
 
           if (inputRefs.current[prevIndex]?.disabled) {
@@ -125,7 +145,6 @@ const GamePage = observer(() => {
           }
           inputRefs.current[prevIndex]?.focus();
         } else {
-          setAnswer((prev) => [prev[0]]);
           inputRefs.current[0]?.focus();
           event.preventDefault();
         }
@@ -138,6 +157,17 @@ const GamePage = observer(() => {
     };
   }, [answer, inputRefs.current]);
 
+  console.log(answer);
+
+  const restart = () => {
+    setArrayIndex([]);
+    setAnswer([]);
+    firstDisabledIndex.current = 0;
+    setLives(3);
+    setIndex(0);
+    setCorrectAnsers(0);
+  };
+
   const hint = () => {
     setIsVisible((prev) => !prev);
   };
@@ -149,96 +179,50 @@ const GamePage = observer(() => {
   };
 
   const showNext = () => {
-    const newAnswer = answer.sort(
-      (firstObj, secondObj) => firstObj.index - secondObj.index
-    );
-    const letters = newAnswer.reduce((acc, curr) => {
-      if (curr.value) {
-        acc += curr.value;
-      }
-      return acc;
-    }, "");
+    const newAnswer = answer
+      .sort((firstObj, secondObj) => firstObj.index - secondObj.index)
+      .map((e) => e.value)
+      .join("");
 
-    if (letters.toLowerCase() === moviesArray[index].toLowerCase()) {
+    if (newAnswer.toLowerCase() === moviesArray[index].toLowerCase()) {
       setIndex((prev) => prev + 1);
-      setMoviesLoaded(false);
-      setAnswer([]);
-      setArrayIndex([]);
-      inputRefs.current = [];
       setCorrectAnsers((prev) => prev + 1);
       localStorage.setItem("correctAnswers", correctAnswers.toString());
-    } else {
+      setArrayIndex([]);
       setAnswer([]);
+      firstDisabledIndex.current = 0;
+    } else {
       setLives((lives) => lives - 1);
     }
+    setArrayIndex([]);
+    setAnswer([]);
+    firstDisabledIndex.current = 0;
   };
 
   return (
-    <div>
-      <h6>GUESS SHOW NAME</h6>
-      <form onSubmit={logOut}>
-        <button
-          css={css`
-            background: linear-gradient(45deg, gold, blue, white);
-            border: none;
-            border-radius: 12px;
-            color: white;
-            font-size: 18px;
-            font-weight: bold;
-            padding: 10px 20px;
-            text-transform: uppercase;
-            transition: transform 0.2s, box-shadow 0.2s;
-
-            &:hover {
-              transform: scale(1.1);
-              box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-            }
-
-            &:active {
-              transform: scale(0.9);
-              box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-            }
-          `}
-          type="button"
-          onClick={logOut}
-        >
+    <div css={styles.container}>
+      <div css={styles.nameWrapper}>
+        <h1 css={styles.name}>GUESS SHOW NAME</h1>
+        <button css={styles.buttonSuper} type="button" onClick={logOut}>
           QUIT
         </button>
-      </form>
+      </div>
+
       <div>{lives}</div>
       <button onClick={hint}>Hints</button>
       <div>
         {lives ? (
           <>
             {isVisible ? overview[index] : showingOverview}
-            <div
-              css={css`
-                display: flex;
-                flex-direction: row;
-                justify-content: center;
-                align-items: center;
-                gap: 4px;
-              `}
-            >
+            <div css={styles.inputContainer}>
               {moviesArray[index]?.split("").map((e: string, i: number) => (
                 <input
                   key={i}
                   ref={(el) => (inputRefs.current[i] = el)}
                   maxLength={1}
-                  css={css`
-                    text-align: center;
-                    width: 25px;
-                    height: 40px;
-                    font-size: 24px;
-                    border: none;
-                    border-bottom: 1px solid #000;
-                    outline: none;
-                    color: transparent;
-                    text-shadow: 0 0 0 black;
-                  `}
+                  css={styles.stylesInput}
                   disabled={arrayIndex.includes(i)}
                   value={answer.find((el) => el.index === i)?.value ?? ""}
-                  placeholder={arrayIndex.includes(i) ? e : ""}
                 />
               ))}
             </div>
@@ -246,16 +230,7 @@ const GamePage = observer(() => {
           </>
         ) : (
           <div>
-            <button
-              onClick={() => {
-                localStorage.removeItem("wrongAnswewers");
-                localStorage.removeItem("correctAnswers");
-                setLives(3);
-                setIndex(0);
-              }}
-            >
-              Restart
-            </button>
+            <button onClick={restart}>Restart</button>
           </div>
         )}
       </div>
