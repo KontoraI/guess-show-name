@@ -1,9 +1,10 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { privateRoute, publicRoute } from "./router";
 import { observer } from "mobx-react-lite";
+import { authService } from "./store/auth";
 
 const AppRouter = observer(() => {
-  const isAuth = !!localStorage.getItem("user");
+  const { isAuth } = authService;
 
   return (
     <>

@@ -1,15 +1,6 @@
 import GamePage from "../pages/GamePage";
 import LoginPage from "../pages/LoginPage";
-
-interface IRoute {
-  path: string;
-  element: React.ComponentState;
-}
-
-enum RoutesName {
-  LOGIN = "/login",
-  GAME = "/",
-}
+import { IRoute, RoutesName } from "../types/routeType";
 
 export const privateRoute: IRoute = {
   path: RoutesName.GAME,
